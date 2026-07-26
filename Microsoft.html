@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بيانات الجهاز من ملف الإكسيل</title>
+    <!-- مكتبة قراءة ملفات الإكسيل -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 20px; 
+            background-color: #f4f7f6; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+            min-height: 90vh;
+            margin: 0;
+        }
+        .card { 
+            background: white; 
+            padding: 30px; 
+            border-radius: 16px; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08); 
+            width: 100%; 
+            max-width: 550px; 
+        }
+        h2 { 
+            color: #0d6efd; 
+            text-align: center; 
+            border-bottom: 2px solid #eef2f5; 
+            padding-bottom: 15px; 
+            margin-top: 0; 
+            font-size: 22px;
+        }
+        .data-row { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            padding: 12px 8px; 
+            border-bottom: 1px solid #f1f5f9; 
+        }
+        .data-row:last-child { border-bottom: none; }
+        .data-row strong { color: #475569; font-size: 15px; }
+        .data-row span { color: #0f172a; font-weight: 600; font-size: 15px; text-align: left; max-width: 60%; word-break: break-word; }
+        .error-msg { color: #e11d48; font-weight: bold; text-align: center; padding: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>تفاصيل جهاز الكمبيوتر (Excel)</h2>
+        <div id="result" style="text-align: center; color: #64748b;">جاري قراءة ملف الإكسيل...</div>
+    </div>
+
+    <script>
+        // اسم ملف الإكسيل المرفوع على GitHub
+        const excelFileName = 'data.xlsx';
+
+        async function fetchExcelData() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const deviceId = urlParams.get('id');
+
+            if (!deviceId) {
+                document.getElementById('result').innerHTML = "<p class='error-msg'>لم يتم التعرف على كود الجهاز. تأكد من مسح الـ QR Code بشكل صحيح.</p>";
+                return;
+            }
+
+            try {
+                // جلب ملف الإكسيل
+                const response = await fetch(excelFileName);
+                const arrayBuffer = await response.arrayBuffer();
+                
+                // قراءة شيت الإكسيل بواسطة المكتبة
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                // تحويل بيانات الشيت لمصفوفة/جدول
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                if (jsonData.length < 2) {
+                    document.getElementById('result').innerHTML = "<p class='error-msg'>ملف الإكسيل فارغ أو لا يحتوي على بيانات.</p>";
+                    return;
+                }
+
+                const headers = jsonData[0]; // عناوين الأعمدة
+                let found = false;
+
+                for (let i = 1; i < jsonData.length; i++) {
+                    const row = jsonData[i];
+                    
+                    // المطابقة برقم/كود الجهاز في العمود الأول
+                    if (row[0] && String(row[0]).trim() === deviceId.trim()) {
+                        let htmlContent = '';
+                        
+                        for (let j = 0; j < headers.length; j++) {
+                            const headerName = headers[j] ? String(headers[j]).trim() : '';
+                            const cellValue = row[j] !== undefined ? String(row[j]).trim() : '';
+                            
+                            if (headerName && cellValue) {
+                                htmlContent += `
+                                    <div class="data-row">
+                                        <strong>${headerName}:</strong> 
+                                        <span>${cellValue}</span>
+                                    </div>
+                                `;
+                            }
+                        }
+                        
+                        document.getElementById('result').innerHTML = htmlContent || "<p class='error-msg'>لا توجد بيانات لهذا الجهاز.</p>";
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    document.getElementById('result').innerHTML = "<p class='error-msg'>هذا الجهاز غير مسجل في ملف الإكسيل.</p>";
+                }
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('result').innerHTML = "<p class='error-msg'>حدث خطأ أثناء فتح ملف الإكسيل. تأكد من رفعه باسم data.xlsx</p>";
+            }
+        }
+
+        fetchExcelData();
+    </script>
+</body>
+</html>
